@@ -1,33 +1,30 @@
 /*
- * PingAsync.cpp
- * This example uses the asynchronous methods of ICMPPing to send a ping,
- * do "other stuff" and check back for results periodically.
- *
- *
- * See the basic "Ping" example, on which this is based, for simpler
- * (but synchronous--meaning code will be frozen while awaiting responses)
- * usage.
- *
- * Setup: Configure the various defines in the Configuration section, below,
- * to select whether to use DHCP or a static IP and to choose the remote host
- * to ping.
- *
- * Circuit:
- * Ethernet shield attached to pins 10, 11, 12, 13
- * OR other wiznet 5100-based board (tested on the WIZ811MJ, for example),
- * suitably connected.
- *
- *  Created on: Dec 12, 2015
- *      Author: Pat Deegan
- *      Part of the ICMPPing Project
- *      Copyright (C) 2015 Pat Deegan, http://psychogenic.com
- * 
- * This file is free software; you can redistribute it and/or modify it under the terms 
- * of either the GNU General Public License version 2 or the GNU Lesser General Public 
- * License version 2.1, both as published by the Free Software Foundation.
- */
+   PingAsync.cpp
+   This example uses the asynchronous methods of ICMPPing to send a ping,
+   do "other stuff" and check back for results periodically.
+
+
+   See the basic "Ping" example, on which this is based, for simpler
+   (but synchronous--meaning code will be frozen while awaiting responses)
+   usage.
+
+   Setup: Configure the various defines in the Configuration section, below,
+   to select whether to use DHCP or a static IP and to choose the remote host
+   to ping.
+
+
+  Requires Adafruit Ethernet 2 library for W5500
+
+  Circuit:
+  Ethernet shield attached to hardware SPI
+  Ethernet CS pin to pin 8 and reset pin to pin 7
+
+
+
+
+*/
 #include <SPI.h>
-#include <Ethernet.h>
+#include <Ethernet2.h>
 #include <ICMPPing.h>
 
 
@@ -37,38 +34,22 @@
 // NOTE: Use *COMMAS* (,) between IP values, as we're
 // using these to init the constructors
 
-// PING_REMOTE_IP -- remote host to ping (see NOTE above)
-// so, e.g., 162.220.162.142 becomes 162, 220, 162, 142
-#define PING_REMOTE_IP      162, 220, 162, 142
 
 
-// TEST_USING_STATIC_IP -- (see NOTE above)
-// leave undefined (commented out)
-// to use DHCP instead.
-// #define TEST_USING_STATIC_IP  192, 168, 2, 177
+#define ETH_CS_PIN 8
+#define ETH_RST_PIN 7
 
-
-
+const byte mac[] = { 0x36, 0xF2, 0xCC, 0xF2, 0xE5, 0xC0 };
+IPAddress pingAddr(192, 168, 0, 102); // ip address to ping
 
 // PING_REQUEST_TIMEOUT_MS -- timeout in ms.  between 1 and 65000 or so
 // save values: 1000 to 5000, say.
 #define PING_REQUEST_TIMEOUT_MS     2500
 
-#define LOCAL_MAC_ADDRESS     0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 
 #ifndef ICMPPING_ASYNCH_ENABLE
 #error "Asynchronous functions only available if ICMPPING_ASYNCH_ENABLE is defined -- see ICMPPing.h"
 #endif
-
-
-
-byte mac[] = {LOCAL_MAC_ADDRESS}; // max address for ethernet shield
-
-#ifdef TEST_USING_STATIC_IP
-byte ip[] = {TEST_USING_STATIC_IP}; // ip address for ethernet shield
-#endif
-
-IPAddress pingAddr(PING_REMOTE_IP); // ip address to ping
 
 SOCKET pingSocket = 0;
 
@@ -90,25 +71,9 @@ void setup()
   // start Ethernet
   Serial.begin(115200);
 
-  Serial.println("PingAsync booted...");
-  Serial.print("Configuring ethernet with ");
+  initEthernet();
+  Serial.println("init success");
 
-#ifdef TEST_USING_STATIC_IP
-
-  Serial.println("static ip");
-  Ethernet.begin(mac, ip);
-#else
-
-  Serial.print("DHCP...");
-  if (! Ethernet.begin(mac) )
-  {
-
-    Serial.println("FAILURE");
-    dieWithMessage("Couldn't init ethernet using DHCP?!");
-  }
-
-  Serial.println("Success!");
-#endif
 
   // increase the default time-out, if needed, assuming a bad
   // connection or whatever.
@@ -188,3 +153,36 @@ void loop()
   delay(500);
 }
 
+
+
+bool initEthernet() {
+
+  Serial.println(F("Obtaining Local IP..."));
+  bool DHCPsuccess = false;
+
+  while (!DHCPsuccess) {
+    digitalWrite(ETH_RST_PIN, LOW);
+    pinMode(ETH_RST_PIN, OUTPUT);
+    delay(100);
+    pinMode(ETH_RST_PIN, INPUT);
+    digitalWrite(ETH_RST_PIN, HIGH);
+    delay(200);
+
+    Ethernet.init(ETH_CS_PIN);
+
+    if (Ethernet.begin(mac)) {
+      Serial.print(F("DHCP IP: "));
+      Serial.println(Ethernet.localIP());
+
+      DHCPsuccess = true;
+    } else {
+      //timed out 60 secs.
+      Serial.println(F("Timeout."));
+      Serial.println(F("Check Ethernet cable."));
+      Serial.println(F("Retring DHCP..."));
+
+    }
+
+  }
+
+}
